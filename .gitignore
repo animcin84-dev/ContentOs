@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Node
+node_modules/
+dist/
+
+# Database
+*.db
+
+# Logs
+*.log
+server_output.log
+
+# OSINT results
+holehe_*_results.csv
+
+# Misc
+.DS_Store
+temp.txt

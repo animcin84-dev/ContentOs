@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consent OS — Управление данными</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+/* =========================================
+   DESIGN SYSTEM
+   ========================================= */
+:root {
+  --bg: #070b13; --bg2: #0d1321; --bg3: rgba(15,22,40,0.9); --glass: rgba(255,255,255,0.04);
+  --border: rgba(99,130,255,0.15); --border2: rgba(99,130,255,0.35);
+  --blue: #6382ff; --purple: #9b5de5; --cyan: #00d4ff; --green: #00e09e;
+  --yellow: #f7c948; --red: #ff4d6d; --orange: #ff7043;
+  --t1: #e8edf7; --t2: #8892b0; --t3: #495670;
+  --r: 14px; --rs: 9px; --tr: 0.22s cubic-bezier(0.4,0,0.2,1);
+  --shadow: 0 8px 32px rgba(0,0,0,0.55);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', sans-serif; background: var(--bg); color: var(--t1);
+  min-height: 100vh; overflow-x: hidden; line-height: 1.6;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 10% 20%, rgba(99,130,255,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 80%, rgba(155,93,229,0.07) 0%, transparent 60%);
+}
+::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+button { cursor: pointer; border: none; font-family: inherit; transition: var(--tr); }
+input, select { font-family: inherit; }
+a { color: var(--blue); text-decoration: none; }
+
+/* =========================================
+   LAYOUT
+   ========================================= */
+.app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+.view { display: none; flex: 1; }
+.view.active { display: flex; flex-direction: column; }
+
+/* =========================================
+   AUTH
+   ========================================= */
+.auth-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+.auth-card {
+  width: 100%; max-width: 420px; padding: 40px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 20px;
+  box-shadow: var(--shadow); text-align: center; animation: fadeUp 0.4s;
+}
+@keyframes fadeUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+.auth-logo { font-size: 52px; margin-bottom: 12px; }
+.auth-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+.auth-sub { font-size: 13px; color: var(--t2); margin-bottom: 28px; }
+.auth-tabs { display: flex; gap: 0; margin-bottom: 24px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.auth-tab { flex: 1; padding: 10px; background: none; color: var(--t2); font-size: 14px; font-weight: 600; border-radius: 0; }
+.auth-tab.active { background: rgba(99,130,255,0.15); color: var(--blue); }
+.field-wrap { margin-bottom: 14px; text-align: left; }
+.field-label { font-size: 11px; font-weight: 600; color: var(--t3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+.field { width: 100%; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--rs); color: var(--t1); font-size: 14px; outline: none; transition: var(--tr); }
+.field:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(99,130,255,0.12); }
+.auth-btn {
+  width: 100%; padding: 14px; margin-top: 6px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  color: white; border-radius: var(--rs); font-weight: 700; font-size: 15px;
+  box-shadow: 0 4px 20px rgba(99,130,255,0.3);
+}
+.auth-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.error-msg { display: none; background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3); color: var(--red); padding: 10px 14px; border-radius: var(--rs); font-size: 13px; margin-bottom: 12px; text-align: left; }
+.error-msg.visible { display: block; }
+
+/* =========================================
+   NAV
+   ========================================= */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 62px;
+  background: rgba(7,11,19,0.88); backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center;
+  padding: 0 28px; gap: 20px;
+}
+.nav-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; }
+.nav-logo-icon { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--blue), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.nav-logo span { background: linear-gradient(90deg, var(--blue), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.nav-divider { width: 1px; height: 30px; background: var(--border); }
+.nav-menu { display: flex; gap: 2px; flex: 1; }
+.nav-item { padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--t2); background: none; transition: var(--tr); }
+.nav-item:hover { color: var(--t1); background: var(--glass); }
+.nav-item.active { color: var(--t1); background: rgba(99,130,255,0.14); }
+.nav-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.plug-badge { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid rgba(0,224,158,0.3); border-radius: 20px; font-size: 12px; color: var(--green); background: rgba(0,224,158,0.08); }
+.user-btn { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border: 1px solid var(--border); border-radius: 22px; background: var(--glass); font-size: 13px; color: var(--t1); }
+.avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--blue), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; }
+
+/* =========================================
+   MAIN CONTENT AREA
+   ========================================= */
+.page { padding: 82px 28px 40px; max-width: 1320px; margin: 0 auto; width: 100%; flex: 1; }
+
+/* =========================================
+   STATS STRIP
+   ========================================= */
+.stats-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 24px; }
+.stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; position: relative; overflow: hidden; cursor: pointer; transition: var(--tr); }
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--c, var(--blue)); }
+.stat-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow); }
+.stat-lbl { font-size: 11px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+.stat-val { font-size: 34px; font-weight: 800; margin: 4px 0 2px; }
+.stat-hint { font-size: 11px; color: var(--t2); }
+.stat-icon { position: absolute; right: 16px; top: 16px; font-size: 28px; opacity: 0.08; }
+
+/* =========================================
+   OVERVIEW GRID
+   ========================================= */
+.overview-grid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+.panel { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.panel-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.graph-box { height: 440px; position: relative; }
+#graph-svg { width: 100%; height: 100%; }
+
+/* Service risk list */
+.risk-list { max-height: 440px; overflow-y: auto; }
+.risk-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; transition: var(--tr); border-bottom: 1px solid rgba(255,255,255,0.03); }
+.risk-row:hover { background: var(--glass); }
+.risk-ico { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.risk-info { flex: 1; min-width: 0; }
+.risk-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.risk-meta { font-size: 11px; color: var(--t3); }
+.risk-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 12px; flex-shrink: 0; }
+
+/* =========================================
+   SERVICES (Google Account Style)
+   ========================================= */
+.services-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 16px; }
+.svc-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; cursor: pointer; transition: var(--tr); position: relative; }
+.svc-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow); }
+.svc-card.revoked { opacity: 0.45; filter: grayscale(0.7); }
+.svc-header { padding: 18px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.svc-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.svc-name { font-size: 15px; font-weight: 700; }
+.svc-domain { font-size: 11px; color: var(--t3); margin-top: 2px; }
+.svc-body { padding: 14px 18px; }
+.data-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.data-pill { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; border: 1px solid; }
+.svc-footer { border-top: 1px solid rgba(255,255,255,0.05); padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; }
+.svc-last { font-size: 11px; color: var(--t3); }
+.revoke-mini { padding: 5px 12px; background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.3); color: var(--red); border-radius: 6px; font-size: 12px; font-weight: 600; }
+.revoke-mini:hover { background: rgba(255,77,109,0.2); }
+.restore-mini { padding: 5px 12px; background: rgba(0,224,158,0.1); border: 1px solid rgba(0,224,158,0.3); color: var(--green); border-radius: 6px; font-size: 12px; font-weight: 600; }
+
+/* =========================================
+   HISTORY
+   ========================================= */
+.history-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: start; }
+.cal-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; position: sticky; top: 82px; }
+.cal-hd { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 14px; margin-bottom: 16px; }
+.cal-arrow { background: var(--glass); border: 1px solid var(--border); color: var(--t1); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; text-align: center; }
+.cal-dn { font-size: 9px; color: var(--t3); font-weight: 700; padding-bottom: 8px; }
+.cal-d { font-size: 12px; padding: 7px 2px; border-radius: 6px; cursor: pointer; transition: var(--tr); position: relative; border: 1px solid transparent; color: var(--t2); }
+.cal-d:hover { background: rgba(99,130,255,0.1); color: var(--t1); }
+.cal-d.today { color: var(--t1); font-weight: 700; }
+.cal-d.sel { background: var(--blue); color: #fff; font-weight: 700; border-color: transparent; }
+.cal-d.has::after { content:''; position:absolute; bottom:2px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--red); }
+.tl-panel { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+.tl-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--t1); }
+.tl-item { display: flex; gap: 14px; padding: 14px; border: 1px solid var(--border); border-radius: var(--rs); margin-bottom: 10px; cursor: pointer; transition: var(--tr); }
+.tl-item:hover { border-color: var(--border2); transform: translateX(2px); }
+.tl-dot { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.tl-text { font-size: 13px; flex: 1; }
+.tl-date { font-size: 11px; color: var(--t3); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+
+/* =========================================
+   DETAIL SLIDE-IN
+   ========================================= */
+.detail-overlay { position: fixed; right: -500px; top: 62px; bottom: 0; width: 480px; background: var(--bg2); border-left: 1px solid var(--border); z-index: 200; display: flex; flex-direction: column; transition: right 0.32s cubic-bezier(0.4,0,0.2,1); }
+.detail-overlay.open { right: 0; }
+.det-head { padding: 22px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; position: sticky; top: 0; background: var(--bg2); z-index: 10; }
+.det-body { padding: 24px; flex: 1; overflow-y: auto; }
+.det-close { width: 30px; height: 30px; background: var(--glass); border: 1px solid var(--border); color: var(--t1); border-radius: 7px; font-size: 15px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.ai-analysis-box { background: rgba(155,93,229,0.07); border: 1px solid rgba(155,93,229,0.25); border-radius: var(--rs); padding: 16px; margin-bottom: 16px; }
+.ai-analysis-box h4 { font-size: 11px; color: var(--purple); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin-bottom: 8px; }
+.det-info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+.det-info-row:last-child { border: none; }
+.ikey { color: var(--t2); }
+.revoke-btn { width: 100%; padding: 13px; background: rgba(255,77,109,0.1); color: var(--red); border: 1px solid rgba(255,77,109,0.3); border-radius: var(--rs); font-weight: 700; font-size: 14px; margin-top: 16px; cursor: pointer; }
+.revoke-btn:hover { background: rgba(255,77,109,0.2); }
+.restore-btn { width: 100%; padding: 13px; background: rgba(0,224,158,0.1); color: var(--green); border: 1px solid rgba(0,224,158,0.3); border-radius: var(--rs); font-weight: 700; font-size: 14px; margin-top: 8px; cursor: pointer; }
+
+/* =========================================
+   TOAST
+   ========================================= */
+.toast-wrap { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { background: var(--bg2); border: 1px solid var(--border); padding: 12px 18px; border-radius: var(--rs); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 10px; animation: slideR 0.25s forwards; box-shadow: 0 4px 20px rgba(0,0,0,0.5); pointer-events: auto; color: var(--t1); }
+@keyframes slideR { from { transform: translateX(110%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+
+/* =========================================
+   SCANNER OVERLAY
+   ========================================= */
+.scanner-overlay { position: fixed; inset: 0; background: rgba(7,11,19,0.95); backdrop-filter: blur(10px); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; transition: 0.3s opacity; }
+.scanner-circle { width: 100px; height: 100px; border: 3px solid transparent; border-top-color: var(--blue); border-bottom-color: var(--purple); border-radius: 50%; animation: spin 1s linear infinite; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; }
+.scanner-inner { font-size: 32px; animation: pulse 2s infinite; }
+.scan-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.scan-text { color: var(--t2); font-size: 13px; max-width: 400px; margin: 0 auto 16px; }
+.scan-log { width: 100%; max-width: 500px; height: 100px; overflow-y: auto; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--t2); text-align: left; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* =========================================
+   UTILITY
+   ========================================= */
+.spinner-s { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.badge-red { background: rgba(255,77,109,0.15); color: var(--red); border-color: rgba(255,77,109,0.3); }
+.badge-yellow { background: rgba(247,201,72,0.12); color: var(--yellow); border-color: rgba(247,201,72,0.3); }
+.badge-green { background: rgba(0,224,158,0.1); color: var(--green); border-color: rgba(0,224,158,0.25); }
+.btn-sm { padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; }
+.btn-primary { background: linear-gradient(135deg, var(--blue), var(--purple)); color: #fff; }
+.btn-ghost { background: var(--glass); border: 1px solid var(--border); color: var(--t1); }
+.empty-state { text-align: center; padding: 60px 24px; color: var(--t3); }
+.empty-state div { font-size: 40px; margin-bottom: 12px; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.section-head h2 { font-size: 18px; font-weight: 700; }
+@media (max-width: 900px) { .stats-strip { grid-template-columns: repeat(2,1fr); } .overview-grid { grid-template-columns: 1fr; } .history-layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ============ AUTH VIEW ============ -->
+<div class="view active" id="view-auth">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo">🛡️</div>
+      <div class="auth-title">Consent OS</div>
+      <div class="auth-sub">Полный контроль над вашими данными</div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Войти</button>
+        <button class="auth-tab" id="tab-signup" onclick="authTab('signup')">Создать аккаунт</button>
+      </div>
+
+      <div id="err-msg" class="error-msg"></div>
+
+      <div id="login-form">
+        <div class="field-wrap">
+          <div class="field-label">Email</div>
+          <input class="field" type="email" id="l-email" placeholder="you@example.com" value="demo@consent.os">
+        </div>
+        <div class="field-wrap">
+          <div class="field-label">Пароль</div>
+          <input class="field" type="password" id="l-pass" placeholder="Ваш пароль" value="demo123">
+        </div>
+        <button class="auth-btn" onclick="doLogin()">Войти в систему</button>
+      </div>
+
+      <div id="signup-form" style="display:none">
+        <div class="field-wrap">
+          <div class="field-label">Имя</div>
+          <input class="field" type="text" id="s-name" placeholder="Как вас зовут?">
+        </div>
+        <div class="field-wrap">
+          <div class="field-label">Email</div>
+          <input class="field" type="email" id="s-email" placeholder="you@example.com">
+        </div>
+        <div class="field-wrap">
+          <div class="field-label">Пароль (мин. 4 символа)</div>
+          <input class="field" type="password" id="s-pass" placeholder="Придумайте пароль">
+        </div>
+        <button class="auth-btn" onclick="doSignup()">Создать аккаунт</button>
+      </div>
+
+      <div style="margin-top:20px; font-size:12px; color:var(--t3)">
+        Демо: demo@consent.os / demo123 — сразу войдёт с демо-данными
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div class="view" id="view-app">
+
+  <nav class="nav">
+    <div class="nav-logo">
+      <div class="nav-logo-icon">🛡️</div>
+      <div><span>Consent</span> OS</div>
+    </div>
+    <div class="nav-divider"></div>
+    <div class="nav-menu">
+      <button class="nav-item active" onclick="showPage('dashboard')">📊 Обзор</button>
+      <button class="nav-item" onclick="showPage('services')">🔗 Сервисы и доступы</button>
+      <button class="nav-item" onclick="showPage('history')">📅 История</button>
+    </div>
+    <div class="nav-right">
+      <button class="btn-sm btn-primary" style="margin-right:8px" onclick="runRealBackendScan(state.user.email)">🔄 Поиск аккаунтов (Backend)</button>
+      <div class="plug-badge" id="plug-status">🔌 Расширение: поиск...</div>
+      <div class="user-btn">
+        <div class="avatar" id="nav-avatar">?</div>
+        <span id="nav-name">—</span>
+        <button onclick="logout()" class="btn-sm btn-ghost" style="margin-left:6px; font-size:11px">Выйти</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- DASHBOARD PAGE -->
+  <div id="pg-dashboard" class="page">
+    <!-- Stats Strip -->
+    <div class="stats-strip">
+      <div class="stat-card" style="--c:var(--blue)" onclick="showPage('services'); filterServices('all')">
+        <div class="stat-lbl">Сервисов с доступом</div>
+        <div class="stat-val" id="s-total" style="color:var(--blue)">—</div>
+        <div class="stat-hint">Кликни для просмотра</div>
+        <div class="stat-icon">🔗</div>
+      </div>
+      <div class="stat-card" style="--c:var(--red)" onclick="showPage('services'); filterServices('high')">
+        <div class="stat-lbl">Высокий риск</div>
+        <div class="stat-val" id="s-high" style="color:var(--red)">—</div>
+        <div class="stat-hint">⚠ Требуют внимания</div>
+        <div class="stat-icon">🚨</div>
+      </div>
+      <div class="stat-card" style="--c:var(--yellow)" onclick="showPage('services'); filterServices('med')">
+        <div class="stat-lbl">Средний риск</div>
+        <div class="stat-val" id="s-med" style="color:var(--yellow)">—</div>
+        <div class="stat-hint">Монетизируют данные</div>
+        <div class="stat-icon">📊</div>
+      </div>
+      <div class="stat-card" style="--c:var(--green)" onclick="showPage('services'); filterServices('revoked')">
+        <div class="stat-lbl">Доступов отозвано</div>
+        <div class="stat-val" id="s-revoked" style="color:var(--green)">—</div>
+        <div class="stat-hint">DSAR отправлено</div>
+        <div class="stat-icon">🛡️</div>
+      </div>
+    </div>
+
+    <div class="overview-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">🌐 Карта потоков данных</div>
+          <span style="font-size:11px; color:var(--t3)">Нажмите на узел для деталей</span>
+        </div>
+        <div class="graph-box"><svg id="graph-svg"></svg></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">🔴 Трекер риска</div>
+          <button class="btn-sm btn-ghost" onclick="showPage('services')">Все →</button>
+        </div>
+        <div class="risk-list" id="risk-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SERVICES PAGE -->
+  <div id="pg-services" class="page" style="display:none">
+    <div class="section-head">
+      <div>
+        <h2>Сервисы и доступы</h2>
+        <div style="font-size:13px; color:var(--t2); margin-top:4px">Как Google Account — все сторонние данные в одном месте</div>
+      </div>
+      <div style="display:flex; gap:8px">
+        <button class="btn-sm btn-ghost" id="filter-all" onclick="filterServices('all')" style="border-color:var(--blue); color:var(--blue)">Все</button>
+        <button class="btn-sm btn-ghost" id="filter-high" onclick="filterServices('high')">🔴 Опасные</button>
+        <button class="btn-sm btn-ghost" id="filter-med" onclick="filterServices('med')">🟡 Средние</button>
+        <button class="btn-sm btn-ghost" id="filter-revoked" onclick="filterServices('revoked')">✅ Отозванные</button>
+      </div>
+    </div>
+    <div class="services-grid" id="services-grid"></div>
+  </div>
+
+  <!-- HISTORY PAGE -->
+  <div id="pg-history" class="page" style="display:none">
+    <div class="history-layout">
+      <div class="cal-card">
+        <div class="cal-hd">
+          <button class="cal-arrow" onclick="moveCal(-1)">‹</button>
+          <span id="cal-label">—</span>
+          <button class="cal-arrow" onclick="moveCal(1)">›</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div style="margin-top:16px; font-size:11px; color:var(--t3); line-height:1.5">
+          ● Красная точка = событие в этот день<br>
+          Нажмите на дату для фильтрации ленты
+        </div>
+      </div>
+      <div class="tl-panel">
+        <div class="tl-title" id="tl-title">Все события</div>
+        <div id="timeline-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /view-app -->
+
+<!-- DETAIL PANEL -->
+<div class="detail-overlay" id="detail-panel">
+  <div class="det-head">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div id="det-icon" style="font-size:38px"></div>
+      <div>
+        <div id="det-name" style="font-size:18px;font-weight:700"></div>
+        <div id="det-domain" style="font-size:12px;color:var(--t3)"></div>
+      </div>
+    </div>
+    <button class="det-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="det-body">
+    <div id="det-pills" style="margin-bottom:18px"></div>
+
+    <!-- Info grid -->
+    <div style="background:var(--glass);border:1px solid var(--border);border-radius:var(--rs);padding:12px;margin-bottom:16px">
+      <div class="det-info-row"><span class="ikey">Категория</span><span id="det-cat"></span></div>
+      <div class="det-info-row"><span class="ikey">Уровень риска</span><span id="det-risk"></span></div>
+      <div class="det-info-row"><span class="ikey">Третьи лица</span><span id="det-third"></span></div>
+      <div class="det-info-row"><span class="ikey">Первое обнаружение</span><span id="det-first"></span></div>
+      <div class="det-info-row"><span class="ikey">Последняя активность</span><span id="det-last"></span></div>
+      <div class="det-info-row"><span class="ikey">Встречается на сайтах</span><span id="det-sites"></span></div>
+    </div>
+
+    <!-- AI analysis box -->
+    <div class="ai-analysis-box">
+      <h4>✨ AI Анализ</h4>
+      <div id="det-ai">
+        <button class="btn-sm btn-primary" onclick="runAIForDetail()">Запустить анализ</button>
+        <div style="font-size:11px;color:var(--t3);margin-top:6px">* Нужен OpenAI ключ в background.js расширения</div>
+      </div>
+    </div>
+
+    <div id="det-revoke-area"></div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<!-- SCAN OVERLAY -->
+<div class="scanner-overlay" id="scanner-ui" style="display:none">
+  <div class="scanner-circle">
+    <div class="scanner-inner">🔎</div>
+  </div>
+  <div class="scan-title">Автоматический OSINT-Анализ</div>
+  <div class="scan-text">Подключаемся к базам утечек и Data Brokers для проверки связанных учеток...</div>
+  <div class="scan-log" id="scan-log">Инициализация модуля обнаружения...<br></div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+// ⬇️ Вставьте ваш OpenAI ключ сюда (если не через расширение):
+const OPENAI_KEY_FALLBACK = 'YOUR_OPENAI_KEY_HERE';
+
+// ============================================================
+// ECOSYSTEM INTEGRATION MOCKUPS (Hackathon Requirement)
+// ============================================================
+const DEMO_SERVICES = [
+  { id:'egov',      name:'eGov.kz',               domain:'egov.kz',       icon:'🏛', cat:'Государство',    data:['ИИН','Семья','Налоги','Прописка'], risk:25, thirdParty:false, revoked:false, firstSeen:'2022-03-01', lastSeen:new Date().toISOString().split('T')[0], sites:[], anom:null, fromBackend:true },
+  { id:'kundelik',  name:'Kundelik / Edu',        domain:'kundelik.kz',   icon:'🎓', cat:'Образование',    data:['Оценки','Место учебы','Посещаемость'], risk:35, thirdParty:false, revoked:false, firstSeen:'2023-09-01', lastSeen:new Date().toISOString().split('T')[0], sites:[], anom:null, fromBackend:true },
+  { id:'damumed',   name:'Damumed (Медицина)',    domain:'damumed.kz',    icon:'⚕️', cat:'Здравоохранение',data:['Группа крови','Анализы','Рецепты'], risk:40, thirdParty:false, revoked:false, firstSeen:'2023-11-20', lastSeen:new Date().toISOString().split('T')[0], sites:[], anom:null, fromBackend:true },
+  { id:'kaspi',     name:'Kaspi.kz',              domain:'kaspi.kz',      icon:'💳', cat:'Финансы',        data:['Транзакции','Кредитный профиль','История покупок'], risk:60, thirdParty:true,  revoked:false, firstSeen:'2023-01-10', lastSeen:new Date().toISOString().split('T')[0], sites:['kolesa.kz'], anom:'Передаёт покупки партнёрам Kaspi Travel', fromBackend:false },
+  { id:'platonus',  name:'Platonus (ВУЗ)',        domain:'platonus.kz',   icon:'📚', cat:'Образование',    data:['Транскрипт','Стипендия','Успеваемость'], risk:30, thirdParty:false, revoked:false, firstSeen:'2024-01-15', lastSeen:new Date().toISOString().split('T')[0], sites:[], anom:null, fromBackend:true },
+];
+
+const DEMO_EVENTS = [
+  { date:new Date().toISOString().split('T')[0], icon:'🏛', type:'info',  text:'Синхронизация с eGov.kz завершена успешно', service:'eGov.kz' },
+  { date:new Date().toISOString().split('T')[0], icon:'🎓', type:'grant', text:'Kundelik получил доступ к цифровому профилю', service:'Kundelik / Edu' },
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let state = {
+  user: null,
+  services: [],  // active service list
+  events: [],
+  extConnected: false,
+};
+let currentFilter = 'all';
+let detailSvc = null;
+let calOffset = 0;
+let graphSim = null;
+
+// ============================================================
+// STORAGE HELPERS (works on file://)
+// ============================================================
+const LS = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+  list: prefix => {
+    const out = [];
+    for(let i=0;i<localStorage.length;i++) { const k=localStorage.key(i); if(k.startsWith(prefix)) { try { out.push(JSON.parse(localStorage.getItem(k))); } catch {} } }
+    return out;
+  }
+};
+
+function simpleHash(s) {
+  let h = 5381;
+  for(let i=0;i<s.length;i++) { h=((h<<5)+h)^s.charCodeAt(i); h=h&h; }
+  return 'h'+Math.abs(h).toString(36)+s.length;
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.onload = async () => {
+  // Auto-create demo user for first-time visitors
+  if (!LS.get('users:demo@consent.os')) {
+    LS.set('users:demo@consent.os', { name:'Гость (Демо)', email:'demo@consent.os', pass: simpleHash('demo123') });
+  }
+
+  const sess = LS.get('session:current');
+  if (sess) {
+    state.user = sess;
+    bootApp();
+  } else {
+    showView('view-auth');
+  }
+
+  tryConnectExtension();
+};
+
+function tryConnectExtension() {
+  // Attempt to communicate with extension
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    // Try to get data from extension
+    try {
+      chrome.runtime.sendMessage({ type: 'GET_ALL_DATA' }, (resp) => {
+        if (chrome.runtime.lastError) {
+          setPlugStatus(false);
+          return;
+        }
+        if (resp) {
+          setPlugStatus(true);
+          // Merge extension data into services
+          mergeExtensionData(resp);
+        }
+      });
+    } catch(e) { setPlugStatus(false); }
+  } else {
+    setPlugStatus(false);
+  }
+}
+
+function setPlugStatus(connected) {
+  state.extConnected = connected;
+  const el = document.getElementById('plug-status');
+  if (el) {
+    el.textContent = connected ? '🟢 Расширение: активно' : '🔌 Расширение: не установлено';
+    el.style.borderColor = connected ? 'rgba(0,224,158,0.4)' : 'rgba(99,130,255,0.3)';
+    el.style.color = connected ? 'var(--green)' : 'var(--t2)';
+  }
+}
+
+function mergeExtensionData(extData) {
+  // Convert extension tracker registry into our service format
+  const reg = extData.trackerRegistry || {};
+  const merged = [];
+
+  for (const [domain, t] of Object.entries(reg)) {
+    if (!t) continue;
+    merged.push({
+      id: domain,
+      name: t.name || domain,
+      domain,
+      icon: getCatIcon(t.cat),
+      cat: t.cat || 'Неизвестно',
+      data: t.data || [],
+      risk: t.risk || 50,
+      thirdParty: t.risk > 60,
+      revoked: t.revoked || false,
+      firstSeen: new Date(t.firstSeen || Date.now()).toISOString().split('T')[0],
+      lastSeen: new Date(t.lastSeen || Date.now()).toISOString().split('T')[0],
+      sites: t.sites || [],
+      anom: null,
+      fromExtension: true,
+    });
+  }
+
+  if (merged.length > 0) {
+    state.services = merged;
+    saveUserServices();
+    updateUI();
+  }
+}
+
+function getCatIcon(cat) {
+  const map = { 'Аналитика':'📊','Реклама':'📢','Социальные сети':'💬','Финансы':'💳','Государство':'🏛','UX Аналитика':'🎬','Инфраструктура':'⚙️','Data Broker':'📡','Транспорт':'🚖','Карьера':'💼','Утилиты':'🔧','Экосистема':'🌐' };
+  return map[cat] || '🔷';
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+function authTab(tab) {
+  document.getElementById('login-form').style.display = tab==='login'?'block':'none';
+  document.getElementById('signup-form').style.display = tab==='signup'?'block':'none';
+  document.getElementById('tab-login').classList.toggle('active', tab==='login');
+  document.getElementById('tab-signup').classList.toggle('active', tab==='signup');
+  clearErr();
+}
+
+function showErr(msg) {
+  const e = document.getElementById('err-msg');
+  e.textContent = msg; e.classList.add('visible');
+}
+function clearErr() { document.getElementById('err-msg').classList.remove('visible'); }
+
+function doLogin() {
+  const email = document.getElementById('l-email').value.trim().toLowerCase();
+  const pass = document.getElementById('l-pass').value;
+  if (!email||!pass) return showErr('Введите email и пароль');
+  const user = LS.get(`users:${email}`);
+  if (!user) return showErr(`Пользователь ${email} не найден. Создайте аккаунт.`);
+  if (user.pass !== simpleHash(pass)) return showErr('Неверный пароль');
+  LS.set('session:current', { name: user.name, email: user.email });
+  state.user = user;
+  toast(`Добро пожаловать, ${user.name}!`, 'success');
+  bootApp();
+}
+
+function doSignup() {
+  const name = document.getElementById('s-name').value.trim();
+  const email = document.getElementById('s-email').value.trim().toLowerCase();
+  const pass = document.getElementById('s-pass').value;
+  if (!name||!email||!pass) return showErr('Заполните все поля');
+  if (pass.length < 4) return showErr('Пароль минимум 4 символа');
+  if (LS.get(`users:${email}`)) return showErr('Пользователь уже существует, войдите.');
+  LS.set(`users:${email}`, { name, email, pass: simpleHash(pass) });
+  LS.set('session:current', { name, email });
+  state.user = { name, email };
+  toast(`Аккаунт создан! Добро пожаловать, ${name}`, 'success');
+  bootApp();
+}
+
+function logout() {
+  LS.set('session:current', null);
+  location.reload();
+}
+
+// ============================================================
+// BOOT APP
+// ============================================================
+function bootApp() {
+  showView('view-app');
+  document.getElementById('nav-name').textContent = state.user.name;
+  document.getElementById('nav-avatar').textContent = state.user.name[0].toUpperCase();
+
+  // Load saved services OR use demo data (Hackathon Requirement)
+  const saved = LS.list(`svc:${state.user.email}:`);
+  if (saved.length > 0) {
+    state.services = saved;
+  } else {
+    state.services = JSON.parse(JSON.stringify(DEMO_SERVICES));
+    saveUserServices();
+  }
+
+  state.events = LS.list(`evt:${state.user.email}:`) || [];
+  if (state.events.length === 0) {
+    state.events = JSON.parse(JSON.stringify(DEMO_EVENTS));
+    state.events.forEach(e => LS.set(`evt:${state.user.email}:${Date.now()+Math.random()}`, e));
+  }
+
+  showPage('dashboard');
+  tryConnectExtension();
+  setTimeout(updateUI, 100);
+
+  // Trigger backend scan if not scanned recently
+  if (!LS.get(`scanned:${state.user.email}`)) {
+    setTimeout(() => runRealBackendScan(state.user.email), 500);
+  }
+}
+
+// ============================================================
+// REAL PYTHON BACKEND SCAN INTEGRATION (Holehe)
+// ============================================================
+async function runRealBackendScan(email) {
+  const ui = document.getElementById('scanner-ui');
+  const log = document.getElementById('scan-log');
+  ui.style.display = 'flex';
+  log.innerHTML = `[+] Вызов API backend: http://127.0.0.1:5000/scan?email=${email}<br>`;
+  
+  try {
+    const res = await fetch(`http://127.0.0.1:5000/scan?email=${encodeURIComponent(email)}`);
+    if (!res.ok) throw new Error('Backend сервер недоступен');
+    
+    const data = await res.json();
+    log.innerHTML += `[+] Сканирование завершено. Найдено аккаунтов: ${(data.found||[]).length}<br>`;
+    
+    if (data.found && data.found.length > 0) { // Add found domains as services
+      data.found.forEach(domain => {
+        let name = domain.split('.')[0];
+        name = name.charAt(0).toUpperCase() + name.slice(1);
+        
+        if (!state.services.find(s => s.id === domain)) {
+          state.services.push({
+            id: domain,
+            name: name,
+            domain: domain,
+            icon: '🌐',
+            cat: 'Онлайн Сервис',
+            data: ['Email', 'Профиль', 'IP-адрес'],
+            risk: 60,
+            thirdParty: true,
+            revoked: false,
+            firstSeen: new Date().toISOString().split('T')[0],
+            lastSeen: new Date().toISOString().split('T')[0],
+            sites: [],
+            anom: 'Обнаружен backend OSINT сканером (Утечки / Регистрации)',
+            fromBackend: true
+          });
+          log.innerHTML += `    - Найдено: ${domain}<br>`;
+          foundCount++;
+        }
+      });
+      if (foundCount > 0) {
+        log.innerHTML += `[+] Интеграция ${foundCount} сервисов в дашборд...<br>`;
+        saveUserServices();
+        updateUI();
+        addEvent({ date: new Date().toISOString().split('T')[0], icon:'🔎', type:'info', text:`Backend сканирование нашло ${foundCount} привязанных сервисов.`, service:'Consent OS AI' });
+      }
+    }
+  } catch (err) {
+    log.innerHTML += `[!] Ошибка сканирования: ${err.message}. Проверьте что server.py запущен.<br>`;
+  }
+  
+  LS.set(`scanned:${state.user.email}`, true);
+  
+  setTimeout(() => { ui.style.opacity = '0'; setTimeout(()=> { ui.style.display='none'; ui.style.opacity='1'; }, 300); }, 2500);
+}
+
+function saveUserServices() {
+  state.services.forEach(s => LS.set(`svc:${state.user.email}:${s.id}`, s));
+}
+
+// ============================================================
+// PAGE ROUTING
+// ============================================================
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function showPage(pg) {
+  ['dashboard','services','history'].forEach(p => {
+    document.getElementById(`pg-${p}`).style.display = p===pg ? 'block' : 'none';
+  });
+  document.querySelectorAll('.nav-item').forEach((el,i) => {
+    el.classList.toggle('active', ['dashboard','services','history'][i]===pg);
+  });
+  if (pg==='history') initCalendar();
+  if (pg==='dashboard') { initGraph(); renderStats(); renderRiskList(); }
+  if (pg==='services') renderServicesGrid();
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function renderStats() {
+  const all = state.services;
+  const active = all.filter(s=>!s.revoked);
+  document.getElementById('s-total').textContent = active.length;
+  document.getElementById('s-high').textContent = active.filter(s=>s.risk>=70).length;
+  document.getElementById('s-med').textContent = active.filter(s=>s.risk>=40&&s.risk<70).length;
+  document.getElementById('s-revoked').textContent = all.filter(s=>s.revoked).length;
+}
+
+function updateUI() {
+  renderStats();
+  renderRiskList();
+  renderServicesGrid();
+  initGraph();
+}
+
+// ============================================================
+// RISK LIST (dashboard sidebar)
+// ============================================================
+function riskColor(r) { return r>=70?'var(--red)':r>=40?'var(--yellow)':'var(--green)'; }
+function riskLabel(r) { return r>=70?'Высокий':r>=40?'Средний':'Низкий'; }
+function badgeClass(r) { return r>=70?'badge-red':r>=40?'badge-yellow':'badge-green'; }
+
+function renderRiskList() {
+  const el = document.getElementById('risk-list');
+  if (!el) return;
+  const sorted = [...state.services].filter(s=>!s.revoked).sort((a,b)=>b.risk-a.risk).slice(0,10);
+  el.innerHTML = sorted.map(s => `
+    <div class="risk-row" onclick="openDetail('${s.id}')">
+      <div class="risk-ico" style="background:${s.color||riskColor(s.risk)}22">${s.icon||'🔷'}</div>
+      <div class="risk-info">
+        <div class="risk-name">${s.name}</div>
+        <div class="risk-meta">${s.cat} · ${(s.data||[]).slice(0,2).join(', ')}</div>
+      </div>
+      <div class="risk-badge data-pill ${badgeClass(s.risk)}" style="border:1px solid">${s.risk}/100</div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// SERVICES GRID
+// ============================================================
+function filterServices(f) {
+  currentFilter = f;
+  ['all','high','med','revoked'].forEach(x => {
+    const btn = document.getElementById('filter-'+x);
+    if (btn) btn.style.borderColor = x===f?'var(--blue)':'var(--border)';
+    if (btn) btn.style.color = x===f?'var(--blue)':'var(--t2)';
+  });
+  renderServicesGrid();
+}
+
+function renderServicesGrid() {
+  const grid = document.getElementById('services-grid');
+  if (!grid) return;
+  let list = state.services;
+  if (currentFilter==='high') list = list.filter(s=>s.risk>=70&&!s.revoked);
+  if (currentFilter==='med') list = list.filter(s=>s.risk>=40&&s.risk<70&&!s.revoked);
+  if (currentFilter==='revoked') list = list.filter(s=>s.revoked);
+  list = [...list].sort((a,b)=>b.risk-a.risk);
+
+  if (!list.length) { grid.innerHTML='<div class="empty-state"><div>✅</div><div style="font-size:14px">Нет сервисов в этой категории</div></div>'; return; }
+
+  grid.innerHTML = list.map(s => {
+    const col = riskColor(s.risk);
+    const bc = badgeClass(s.risk);
+    return `
+    <div class="svc-card ${s.revoked?'revoked':''}" onclick="openDetail('${s.id}')">
+      <div class="svc-header">
+        <div class="svc-icon" style="background:${col}18">${s.icon||'🔷'}</div>
+        <div style="flex:1;min-width:0">
+          <div class="svc-name">${s.name} ${s.anom?'⚠️':''}</div>
+          <div class="svc-domain">${s.domain}</div>
+        </div>
+        <div class="risk-badge data-pill ${bc}" style="border:1px solid;font-size:12px">${s.risk}/100</div>
+      </div>
+      <div class="svc-body">
+        <div style="font-size:11px;color:var(--t3);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px">Какие данные собирает:</div>
+        <div class="data-pills">
+          ${(s.data||[]).map(d=>`<span class="data-pill" style="color:${col};border-color:${col}33;background:${col}0f">${d}</span>`).join('')}
+        </div>
+        ${s.anom?`<div style="font-size:11px;color:var(--red);margin-top:4px;background:rgba(255,77,109,0.08);padding:6px 10px;border-radius:6px">⚠ ${s.anom}</div>`:''}
+      </div>
+      <div class="svc-footer">
+        <div class="svc-last">Последняя активность: ${s.lastSeen||'—'}</div>
+        ${s.revoked
+          ? `<button class="restore-mini" onclick="event.stopPropagation(); restore('${s.id}')">↩ Восстановить</button>`
+          : `<button class="revoke-mini" onclick="event.stopPropagation(); revoke('${s.id}')">🚫 Отозвать</button>`
+        }
+      </div>
+    </div>
+    `;
+  }).join('');
+}
+
+// ============================================================
+// REVOKE / RESTORE
+// ============================================================
+function revoke(id) {
+  const s = state.services.find(x=>x.id===id);
+  if (!s) return;
+  s.revoked = true;
+  LS.set(`svc:${state.user.email}:${id}`, s);
+
+  // Log event
+  addEvent({ date: new Date().toISOString().split('T')[0], icon:'🛡️', type:'grant', text:`Доступ к ${s.name} отозван. GDPR-запрос сформирован.`, service:s.name });
+
+  // Open mailto GDPR
+  const body = encodeURIComponent(`Уважаемый Privacy Officer,\n\nПрошу удалить все мои персональные данные согласно GDPR / Закону РК о персональных данных.\n\nEmail: ${state.user.email}\nИмя: ${state.user.name}\n\nПожалуйста, подтвердите удаление данных.`);
+  window.open(`mailto:privacy@${s.domain}?cc=dpo@${s.domain}&subject=Запрос на удаление данных (GDPR / Закон РК)&body=${body}`);
+
+  toast(`✅ ${s.name} — доступ отозван. GDPR письмо открыто.`, 'success');
+  closeDetail();
+  updateUI();
+}
+
+function restore(id) {
+  const s = state.services.find(x=>x.id===id);
+  if (!s) return;
+  s.revoked = false;
+  LS.set(`svc:${state.user.email}:${id}`, s);
+  toast(`↩ ${s.name} — доступ восстановлен`, 'info');
+  updateUI();
+}
+
+// ============================================================
+// DETAIL PANEL
+// ============================================================
+function openDetail(id) {
+  const s = state.services.find(x=>x.id===id);
+  if (!s) return;
+  detailSvc = s;
+
+  document.getElementById('det-icon').textContent = s.icon||'🔷';
+  document.getElementById('det-name').textContent = s.name;
+  document.getElementById('det-domain').textContent = s.domain;
+
+  const col = riskColor(s.risk);
+  document.getElementById('det-pills').innerHTML = (s.data||[]).map(d=>`<span class="data-pill" style="color:${col};border-color:${col}33;background:${col}0f;margin:3px">${d}</span>`).join('');
+  document.getElementById('det-cat').textContent = s.cat||'—';
+  document.getElementById('det-risk').innerHTML = `<span style="color:${col};font-weight:700">${s.risk}/100 — ${riskLabel(s.risk)}</span>`;
+  document.getElementById('det-third').textContent = s.thirdParty ? '⚠ Да — передаёт брокерам' : '✅ Нет';
+  document.getElementById('det-first').textContent = s.firstSeen || '—';
+  document.getElementById('det-last').textContent = s.lastSeen || '—';
+  document.getElementById('det-sites').textContent = (s.sites||[]).length > 0 ? `${s.sites.length} сайт(ов)` : '—';
+  document.getElementById('det-ai').innerHTML = `<button class="btn-sm btn-primary" onclick="runAIForDetail()">✨ AI Анализ</button><div style="font-size:11px;color:var(--t3);margin-top:6px">Анализ через OpenAI gpt-4o-mini</div>`;
+  document.getElementById('det-revoke-area').innerHTML = s.revoked
+    ? `<button class="restore-btn" onclick="restore('${s.id}')">↩ Восстановить доступ</button>`
+    : `<button class="revoke-btn" onclick="revoke('${s.id}')">🚫 Отозвать доступ (GDPR Request)</button>`;
+
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() { document.getElementById('detail-panel').classList.remove('open'); }
+
+async function runAIForDetail() {
+  if (!detailSvc) return;
+  const aiEl = document.getElementById('det-ai');
+  aiEl.innerHTML = '<div class="spinner-s"></div> Анализирует AI...';
+
+  // If extension connected, use it
+  if (state.extConnected && typeof chrome !== 'undefined') {
+    chrome.runtime.sendMessage({
+      type: 'AI_ANALYZE',
+      site: detailSvc.domain,
+      trackers: [detailSvc]
+    }, resp => {
+      if (resp?.ok) {
+        aiEl.innerHTML = `<div style="font-size:12px;line-height:1.6;color:var(--t1);white-space:pre-wrap">${resp.analysis}</div>`;
+      } else {
+        aiEl.innerHTML = `<span style="color:var(--red)">Ошибка: ${resp?.error||'Проверьте ключ в background.js'}</span>`;
+      }
+    });
+    return;
+  }
+
+  // Direct OpenAI call fallback
+  if (OPENAI_KEY_FALLBACK === 'YOUR_OPENAI_KEY_HERE') {
+    aiEl.innerHTML = `<div style="font-size:12px;color:var(--yellow)">⚠ Добавьте ваш OpenAI ключ в переменную OPENAI_KEY_FALLBACK вверху файла index.html</div>`;
+    return;
+  }
+
+  try {
+    const d = detailSvc;
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${OPENAI_KEY_FALLBACK}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 500,
+        messages: [
+          { role:'system', content:'Ты эксперт по цифровой приватности. Отвечай на русском, кратко и структурированно.' },
+          { role:'user', content:`Сервис: ${d.name} (${d.domain})\nКатегория: ${d.cat}\nДанные: ${(d.data||[]).join(', ')}\nРиск: ${d.risk}/100\nАномалии: ${d.anom||'нет'}\n\nДай: 1) Что конкретно опасно 2) Чем грозит 3) Что сделать` }
+        ]
+      })
+    });
+    const data = await resp.json();
+    const text = data.choices?.[0]?.message?.content || 'Нет ответа';
+    aiEl.innerHTML = `<div style="font-size:12px;line-height:1.6;color:var(--t1);white-space:pre-wrap">${text}</div>`;
+  } catch(e) {
+    aiEl.innerHTML = `<span style="color:var(--red)">Ошибка: ${e.message}</span>`;
+  }
+}
+
+// ============================================================
+// HISTORY + CALENDAR
+// ============================================================
+function addEvent(evt) {
+  state.events.unshift(evt);
+  LS.set(`evt:${state.user.email}:${Date.now()}`, evt);
+}
+
+function initCalendar() { renderCalendar(0); renderTimeline(null); }
+
+function moveCal(d) { calOffset += d; renderCalendar(calOffset); }
+
+function renderCalendar(offset) {
+  const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  document.getElementById('cal-label').textContent = `${months[d.getMonth()]} ${d.getFullYear()}`;
+
+  const eventDates = new Set(state.events.map(e=>e.date));
+  const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  let firstDay = d.getDay(); if(firstDay===0) firstDay=7;
+  const days = new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  const todayStr = now.toISOString().split('T')[0];
+
+  let html = ['ПН','ВТ','СР','ЧТ','ПТ','СБ','ВС'].map(n=>`<div class="cal-dn">${n}</div>`).join('');
+  for(let i=1;i<firstDay;i++) html += '<div></div>';
+  for(let dd=1;dd<=days;dd++) {
+    const ds = `${ym}-${String(dd).padStart(2,'0')}`;
+    const hasEv = eventDates.has(ds);
+    const isToday = ds === todayStr;
+    html += `<div class="cal-d ${isToday?'today':''} ${hasEv?'has':''}" onclick="calClick('${ds}')">${dd}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function calClick(ds) {
+  document.querySelectorAll('.cal-d').forEach(e=>e.classList.remove('sel'));
+  event.target.classList.add('sel');
+  renderTimeline(ds);
+}
+
+function renderTimeline(filterDate) {
+  const evts = filterDate ? state.events.filter(e=>e.date===filterDate) : state.events;
+  const title = filterDate ? `События за ${filterDate}` : 'Все события';
+  document.getElementById('tl-title').textContent = title;
+
+  const typeColors = { alert:'rgba(255,77,109,0.12)', info:'rgba(99,130,255,0.1)', grant:'rgba(0,224,158,0.1)' };
+  document.getElementById('timeline-list').innerHTML = evts.length
+    ? evts.map(e=>`
+        <div class="tl-item" onclick="">
+          <div class="tl-dot" style="background:${typeColors[e.type]||'var(--glass)'}">${e.icon||'ℹ️'}</div>
+          <div>
+            <div style="font-weight:600;font-size:14px">${e.service}</div>
+            <div class="tl-text">${e.text}</div>
+            <div class="tl-date">${e.date}</div>
+          </div>
+        </div>
+      `).join('')
+    : '<div style="color:var(--t3);padding:20px;text-align:center">Нет событий за этот день</div>';
+}
+
+// ============================================================
+// D3 FORCE GRAPH
+// ============================================================
+function initGraph() {
+  const svgEl = document.getElementById('graph-svg');
+  if (!svgEl || !svgEl.clientWidth) return;
+  const svg = d3.select('#graph-svg');
+  svg.selectAll('*').remove();
+  if (graphSim) graphSim.stop();
+
+  const W = svgEl.clientWidth, H = svgEl.clientHeight;
+  const center = { id:'_user', label: state.user?.name||'Вы', r:34, isUser:true };
+  const nodes = [center];
+  const links = [];
+
+  state.services.filter(s=>!s.revoked).forEach(s => {
+    nodes.push({ id:s.id, label:s.name, r: 12 + Math.min((s.data||[]).length*2, 12), col:riskColor(s.risk), icon:s.icon||'🔷', revoked:s.revoked });
+    links.push({ source:'_user', target:s.id, w: s.thirdParty?2:1 });
+  });
+
+  graphSim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(150).strength(0.4))
+    .force('charge', d3.forceManyBody().strength(-320))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide().radius(d=>d.r+10));
+
+  const link = svg.append('g').selectAll('line').data(links).enter().append('line')
+    .attr('stroke', d => { const t=state.services.find(s=>s.id===d.target.id||s.id===d.target); return t?riskColor(t.risk):'rgba(255,255,255,0.12)'; })
+    .attr('stroke-opacity', 0.35)
+    .attr('stroke-width', d=>d.w);
+
+  const node = svg.append('g').selectAll('g').data(nodes).enter().append('g')
+    .style('cursor', d=>d.isUser?'default':'pointer')
+    .on('click', (e,d) => { if (!d.isUser) openDetail(d.id); })
+    .call(d3.drag()
+      .on('start', (e,d)=>{ if(!e.active) graphSim.alphaTarget(0.3).restart(); d.fx=d.x;d.fy=d.y; })
+      .on('drag', (e,d)=>{ d.fx=e.x;d.fy=e.y; })
+      .on('end', (e,d)=>{ if(!e.active) graphSim.alphaTarget(0); d.fx=null;d.fy=null; })
+    );
+
+  node.append('circle')
+    .attr('r', d=>d.r)
+    .attr('fill', d=>d.isUser?'rgba(99,130,255,0.18)':'rgba(255,255,255,0.03)')
+    .attr('stroke', d=>d.isUser?'var(--blue)':d.col)
+    .attr('stroke-width', 2);
+
+  node.append('text').attr('text-anchor','middle').attr('dy','0.35em').attr('font-size', d=>d.isUser?'18px':'15px')
+    .text(d=>d.isUser?'👤':d.icon);
+
+  node.append('text').attr('text-anchor','middle').attr('dy',d=>d.r+13)
+    .attr('fill','var(--t2)').attr('font-size','10px').attr('font-weight','500')
+    .text(d=>d.isUser?d.label:(d.label||'').split(' ')[0]);
+
+  graphSim.on('tick', () => {
+    link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    node.attr('transform', d=>`translate(${d.x},${d.y})`);
+  });
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, type='info') {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.style.borderLeft = `4px solid ${type==='success'?'var(--green)':type==='error'?'var(--red)':'var(--blue)'}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(()=>el.remove(), 4000);
+}
+</script>
+</body>
+</html>

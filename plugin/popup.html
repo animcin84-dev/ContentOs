@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consent OS</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { width: 380px; min-height: 200px; font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1321; color: #e8edf7; }
+.header { background: linear-gradient(135deg, #6382ff, #9b5de5); padding: 16px 20px; display: flex; align-items: center; gap: 10px; }
+.header img { width: 28px; height: 28px; }
+.header h1 { font-size: 16px; font-weight: 700; }
+.header .site { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+.stats { display: flex; gap: 1px; background: rgba(255,255,255,0.05); }
+.stat { flex: 1; padding: 12px; text-align: center; background: rgba(8,12,20,0.8); }
+.stat-val { font-size: 22px; font-weight: 800; }
+.stat-lbl { font-size: 10px; color: #8892b0; margin-top: 2px; }
+.section { padding: 12px 16px; }
+.section-title { font-size: 11px; font-weight: 700; color: #6382ff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+.tracker-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(99,130,255,0.12); margin-bottom: 6px; }
+.tracker-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.tracker-name { font-size: 12px; font-weight: 600; flex: 1; }
+.tracker-cat { font-size: 10px; color: #8892b0; }
+.tracker-score { font-size: 11px; font-weight: 700; }
+.ai-btn { width: calc(100% - 32px); margin: 0 16px 12px; padding: 10px; background: linear-gradient(135deg, rgba(155,93,229,0.2), rgba(99,130,255,0.2)); border: 1px solid rgba(155,93,229,0.4); color: #d0a5ff; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.ai-btn:hover { background: rgba(155,93,229,0.3); }
+.ai-result { margin: 0 16px 12px; padding: 12px; background: rgba(155,93,229,0.08); border: 1px solid rgba(155,93,229,0.3); border-radius: 8px; font-size: 12px; line-height: 1.6; color: #e8edf7; white-space: pre-wrap; }
+.footer { padding: 10px 16px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
+.open-dash { font-size: 11px; color: #6382ff; cursor: pointer; text-decoration: underline; }
+.empty { padding: 24px 16px; text-align: center; color: #495670; font-size: 13px; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>🛡️</div>
+  <div>
+    <h1>Consent OS</h1>
+    <div class="site" id="current-site">Загрузка...</div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-val" id="s-local" style="color:#6382ff">—</div>
+    <div class="stat-lbl">На этой странице</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="s-total" style="color:#9b5de5">—</div>
+    <div class="stat-lbl">В базе всего</div>
+  </div>
+  <div class="stat">
+    <div class="stat-val" id="s-sites" style="color:#f7c948">—</div>
+    <div class="stat-lbl">Сайтов просмотрено</div>
+  </div>
+</div>
+
+<div id="main-content">
+  <div class="empty">Открывает страницу...</div>
+</div>
+
+<button class="ai-btn" id="ai-btn" onclick="runAI()">✨ AI Анализ этой страницы</button>
+<div class="ai-result" id="ai-result" style="display:none"></div>
+
+<div class="footer">
+  <span style="font-size:11px; color:#495670">Автоматический мониторинг активен</span>
+  <span class="open-dash" onclick="openDashboard()">Открыть панель →</span>
+</div>
+
+<script>
+let currentTrackers = [];
+let currentSite = '';
+
+chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+  const tab = tabs[0];
+  if (!tab) return;
+  const url = tab.url || '';
+  try {
+    currentSite = new URL(url).hostname.replace(/^www\./, '');
+  } catch { currentSite = 'Неизвестно'; }
+  document.getElementById('current-site').textContent = currentSite;
+
+  // Get data for this tab
+  chrome.runtime.sendMessage({ type: 'GET_TAB_DATA', domain: currentSite }, resp => {
+    const trackers = resp?.trackers || [];
+    currentTrackers = trackers;
+    document.getElementById('s-local').textContent = trackers.length;
+    renderTrackers(trackers);
+  });
+
+  // Get global stats
+  chrome.runtime.sendMessage({ type: 'GET_ALL_DATA' }, resp => {
+    const reg = resp?.trackerRegistry || {};
+    const log = resp?.siteLog || {};
+    document.getElementById('s-total').textContent = Object.keys(reg).length;
+    document.getElementById('s-sites').textContent = Object.keys(log).length;
+  });
+});
+
+function riskColor(score) {
+  if (score >= 70) return '#ff4d6d';
+  if (score >= 40) return '#f7c948';
+  return '#00e09e';
+}
+
+function renderTrackers(trackers) {
+  const el = document.getElementById('main-content');
+  if (!trackers.length) {
+    el.innerHTML = '<div class="empty">✅ Трекеры не обнаружены<br><small>Эта страница чистая</small></div>';
+    return;
+  }
+  const sorted = [...trackers].sort((a,b) => (b.risk||0) - (a.risk||0));
+  el.innerHTML = `
+    <div class="section">
+      <div class="section-title">Обнаруженные трекеры</div>
+      ${sorted.map(t => `
+        <div class="tracker-item">
+          <div class="tracker-dot" style="background:${riskColor(t.risk||50)}"></div>
+          <div style="flex:1">
+            <div class="tracker-name">${t.name}</div>
+            <div class="tracker-cat">${t.cat || ''} · ${(t.data||[]).slice(0,2).join(', ')}</div>
+          </div>
+          <div class="tracker-score" style="color:${riskColor(t.risk||50)}">${t.risk||'?'}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function runAI() {
+  const btn = document.getElementById('ai-btn');
+  const res = document.getElementById('ai-result');
+  if (!currentTrackers.length) {
+    res.style.display = 'block';
+    res.textContent = 'На этой странице нет трекеров для анализа.';
+    return;
+  }
+  btn.innerHTML = '<span class="spinner"></span> Анализирую...';
+  btn.disabled = true;
+  res.style.display = 'none';
+
+  chrome.runtime.sendMessage({
+    type: 'AI_ANALYZE',
+    site: currentSite,
+    trackers: currentTrackers
+  }, resp => {
+    btn.innerHTML = '✨ AI Анализ этой страницы';
+    btn.disabled = false;
+    if (resp?.ok) {
+      res.textContent = resp.analysis;
+      res.style.display = 'block';
+    } else {
+      res.textContent = 'Ошибка: ' + (resp?.error || 'Проверьте API ключ в background.js');
+      res.style.display = 'block';
+    }
+  });
+}
+
+function openDashboard() {
+  chrome.tabs.create({ url: chrome.runtime.getURL('') });
+}
+</script>
+</body>
+</html>

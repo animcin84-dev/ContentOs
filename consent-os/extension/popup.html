@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Consent OS</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            width: 340px;
+            margin: 0;
+            padding: 20px;
+            background-color: #ffffff;
+            color: #1a1f36;
+        }
+        h2 {
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+        .accent { color: #8a9eff; }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #697386;
+            margin-bottom: 6px;
+        }
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            background-color: #f8f9fa;
+            border: 1px solid #eef0f4;
+            color: #1a1f36;
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-bottom: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+            font-size: 13px;
+        }
+        input:focus { 
+            border-color: #8a9eff;
+            box-shadow: 0 0 0 3px rgba(138, 158, 255, 0.15);
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #1a1f36;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(26, 31, 54, 0.1);
+        }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        #syncBtn {
+            background: #ffffff;
+            color: #1a1f36;
+            border: 1px solid #eef0f4;
+        }
+        #syncBtn:hover {
+            background: #f8f9fa;
+        }
+
+        #scanBtn {
+            background: #fff0f0;
+            color: #ef4444;
+            border: 1px solid #fee2e2;
+        }
+        #scanBtn:hover {
+            background: #ffe4e4;
+        }
+
+        #status {
+            margin-top: 4px;
+            font-size: 12px;
+            text-align: center;
+            min-height: 15px;
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        /* Progress section */
+        #scan-progress {
+            display: none;
+            margin-top: 14px;
+            padding: 14px;
+            background: #f8f9fa;
+            border: 1px solid #eef0f4;
+            border-radius: 12px;
+        }
+        #scan-progress.visible { display: block; }
+
+        .progress-title {
+            font-size: 11px;
+            color: #697386;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .progress-count {
+            font-size: 13px;
+            font-weight: 800;
+            color: #8a9eff;
+        }
+        .progress-bar-bg {
+            height: 6px;
+            background: #eef0f4;
+            border-radius: 99px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 99px;
+            background: #8a9eff;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+        .progress-phase {
+            font-size: 11px;
+            color: #697386;
+            font-weight: 500;
+        }
+        .pulse {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: blink 1.2s infinite;
+            margin-right: 6px;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+
+        .help {
+            font-size: 11px;
+            color: #9ba3af;
+            margin-top: 16px;
+            text-align: center;
+            font-weight: 500;
+        }
+        .history {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #eef0f4;
+        }
+        .history-title {
+            font-size: 11px;
+            color: #697386;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .h-item {
+            background: #ffffff;
+            border: 1px solid #eef0f4;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .h-domain { font-weight: bold; color: #1a1f36; }
+        .h-time { color: #9ba3af; font-size: 10px; float: right; }
+        .h-scopes { 
+            color: #8a9eff; 
+            margin-top: 4px; 
+            font-family: SFMono-Regular, Consolas, monospace; 
+            word-break: break-all; 
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <h2><span style="color:#b58eff;">🛡️</span> Consent <span class="accent">OS</span></h2>
+    
+    <label for="token">JWT Core Token:</label>
+    <input type="password" id="token" placeholder="eyJhbGciOiJIUzI1NiIs..." />
+    
+    <button id="saveBtn">Save Core Token</button>
+    <button id="syncBtn">⚡ Sync with Active Dashboard</button>
+    <button id="scanBtn">🔍 Scan Legacy (Google Access)</button>
+    <div id="status"></div>
+
+    <!-- Live scan progress block -->
+    <div id="scan-progress">
+        <div class="progress-title">
+            <span><span class="pulse"></span> Scanning</span>
+            <span class="progress-count" id="found-count">0 items</span>
+        </div>
+        <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-phase" id="progress-phase">Initializing...</div>
+    </div>
+
+    <div class="history">
+        <div class="history-title">Interception Log</div>
+        <div class="history-list" id="historyList">
+            <div style="text-align:center; color:#9ba3af; font-size:11px; padding: 10px 0;">No active intercepts</div>
+        </div>
+    </div>
+
+    <div class="help">Background OAuth Engine Active</div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
