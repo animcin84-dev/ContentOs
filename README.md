@@ -1,3 +1,11 @@
+<img width="1920" height="1080" alt="Screenshot_22-Apr_22-47-19_29928" src="https://github.com/user-attachments/assets/241293e1-05f2-488a-94a3-33ad75839422" />
+<img width="1920" height="1080" alt="Screenshot_22-Apr_22-47-11_14283" src="https://github.com/user-attachments/assets/8f784528-b3bc-4d0e-9746-2184b8787fea" />
+<img width="1920" height="1080" alt="Screenshot_22-Apr_22-46-56_18756" src="https://github.com/user-attachments/assets/c902624b-4a32-4aff-b0d4-9f073e643fb1" />
+<img width="1920" height="1080" alt="Screenshot_22-Apr_22-46-44_16482" src="https://github.com/user-attachments/assets/b50aa34d-9e68-4165-a68f-7789ec7823f2" />
+<img width="1920" height="1080" alt="Screenshot_22-Apr_22-46-35_2350" src="https://github.com/user-attachments/assets/568ecaeb-b9b1-40b7-a267-94e5a0139890" />
+<img width="1920" height="1080" alt="Screenshot_22-Apr_19-00-14_22250" src="https://github.com/user-attachments/assets/0f002f90-23d0-48bc-aa77-acd34f39db04" />
+
+
 # 🛡️ Consent OS (IQCH)
 
 **Consent OS** — это передовая автономная система управления конфиденциальностью и аудита цифровых разрешений. Проект предназначен для централизованного контроля за тем, какие сервисы имеют доступ к вашим персональным данным (Google OAuth и другие), анализа рисков с помощью ИИ и мгновенного отзыва небезопасных доступов.
